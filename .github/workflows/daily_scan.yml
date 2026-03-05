@@ -1,25 +1,10 @@
-# Wikipedia Manipulation Monitor - Automatischer täglicher Scan
-# ============================================================
-# Dieser Workflow läuft täglich um 6:00 UTC und scannt Wikipedia
-# nach Manipulation und Machtmissbrauch.
-
 name: Daily Wikipedia Scan
 
 on:
-  # Täglich um 6:00 UTC (7:00 oder 8:00 deutsche Zeit je nach Sommer/Winterzeit)
   schedule:
     - cron: '0 6 * * *'
-  
-  # Manuelles Auslösen möglich
   workflow_dispatch:
-    inputs:
-      full_scan:
-        description: 'Vollständigen Scan durchführen?'
-        required: false
-        default: 'true'
-        type: boolean
 
-# Berechtigungen für das Speichern der Datenbank
 permissions:
   contents: write
 
@@ -28,40 +13,45 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      # 1. Repository auschecken
       - name: 📥 Repository auschecken
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Vollständige History für Commits
+          fetch-depth: 0
       
-      # 2. Python einrichten
       - name: 🐍 Python einrichten
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
       
-      # 3. Abhängigkeiten installieren
       - name: 📦 Abhängigkeiten installieren
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       
-      # 4. Data-Ordner erstellen falls nicht vorhanden
       - name: 📁 Data-Ordner vorbereiten
         run: mkdir -p data
       
-      # 5. Vorherige Datenbank herunterladen (falls vorhanden)
-      - name: 📂 Vorherige Datenbank laden
-        continue-on-error: true
+      - name: 🧪 DEBUG - Python Imports testen
+        env:
+          HF_API_TOKEN: ${{ secrets.HF_API_TOKEN }}
         run: |
-          if [ -f data/wiki_monitor.db ]; then
-            echo "Datenbank existiert bereits"
-          else
-            echo "Keine vorherige Datenbank gefunden"
-          fi
+          echo "=== Teste Python Imports ==="
+          python -c "print('Python funktioniert')"
+          python -c "import requests; print('requests OK')"
+          python -c "import pandas; print('pandas OK')"
+          python -c "import sqlite3; print('sqlite3 OK')"
+          echo ""
+          echo "=== Teste src Module ==="
+          python -c "from src.config import config; print('config OK')"
+          python -c "from src.database import init_database; print('database OK')"
+          python -c "from src.wiki_api import WikipediaAPI; print('wiki_api OK')"
+          python -c "from src.detectors import ManipulationDetector; print('detectors OK')"
+          python -c "from src.ai_analyzer import AIAnalyzer; print('ai_analyzer OK')"
+          python -c "from src.article_finder import ArticleFinder; print('article_finder OK')"
+          echo ""
+          echo "=== Alle Imports erfolgreich! ==="
       
-      # 6. Scan durchführen
       - name: 🔍 Wikipedia Scan durchführen
         env:
           HF_API_TOKEN: ${{ secrets.HF_API_TOKEN }}
@@ -69,11 +59,9 @@ jobs:
           echo "Starte Wikipedia Manipulation Scan..."
           python main.py scan
       
-      # 7. Statistiken ausgeben
       - name: 📊 Statistiken anzeigen
         run: python main.py stats
       
-      # 8. Datenbank als Artifact speichern
       - name: 💾 Datenbank speichern (Artifact)
         uses: actions/upload-artifact@v4
         with:
@@ -81,74 +69,14 @@ jobs:
           path: data/wiki_monitor.db
           retention-days: 90
       
-      # 9. Datenbank ins Repository committen
       - name: 📤 Datenbank committen
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          
-          # Datenbank hinzufügen
           git add data/wiki_monitor.db
-          
-          # Nur committen wenn es Änderungen gibt
           if git diff --staged --quiet; then
             echo "Keine Änderungen in der Datenbank"
           else
             git commit -m "🔄 Automatischer Scan $(date +'%Y-%m-%d %H:%M')"
             git push
           fi
-      
-      # 10. Zusammenfassung erstellen
-      - name: 📝 Job-Zusammenfassung
-        run: |
-          echo "## 🔍 Wikipedia Manipulation Monitor - Scan abgeschlossen" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Zeitpunkt:** $(date +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          python -c "
-          from src.database import get_statistics, init_database
-          init_database()
-          stats = get_statistics()
-          print(f\"**Gesamte Fälle:** {stats.get('total_cases', 0)}\")
-          print(f\"**Neue Fälle:** {stats.get('new_cases', 0)}\")
-          print(f\"**Überwachte Artikel:** {stats.get('watched_articles', 0)}\")
-          " >> $GITHUB_STEP_SUMMARY
-
-
-  # Optional: Benachrichtigung bei kritischen Fällen
-  notify:
-    needs: scan
-    runs-on: ubuntu-latest
-    if: always()
-    
-    steps:
-      - name: 📥 Repository auschecken
-        uses: actions/checkout@v4
-      
-      - name: 🐍 Python einrichten
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      
-      - name: 📦 Abhängigkeiten installieren
-        run: pip install -r requirements.txt
-      
-      - name: 📂 Datenbank herunterladen
-        uses: actions/download-artifact@v4
-        with:
-          name: wiki-monitor-database
-          path: data/
-      
-      - name: 🚨 Kritische Fälle prüfen
-        run: |
-          python -c "
-          from src.database import get_cases, init_database
-          init_database()
-          critical = get_cases(min_severity=8, status='neu')
-          if critical:
-              print(f'⚠️ {len(critical)} KRITISCHE FÄLLE GEFUNDEN!')
-              for case in critical[:5]:
-                  print(f\"  - {case['article_title']}: {case.get('title', case['case_type'])}\")
-          else:
-              print('✅ Keine kritischen neuen Fälle')
-          "
