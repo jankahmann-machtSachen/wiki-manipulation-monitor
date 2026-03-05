@@ -1,0 +1,82 @@
+name: Daily Wikipedia Scan
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Repository auschecken
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: 🐍 Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: 📦 Abhängigkeiten installieren
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: 📁 Data-Ordner vorbereiten
+        run: mkdir -p data
+      
+      - name: 🧪 DEBUG - Python Imports testen
+        env:
+          HF_API_TOKEN: ${{ secrets.HF_API_TOKEN }}
+        run: |
+          echo "=== Teste Python Imports ==="
+          python -c "print('Python funktioniert')"
+          python -c "import requests; print('requests OK')"
+          python -c "import pandas; print('pandas OK')"
+          python -c "import sqlite3; print('sqlite3 OK')"
+          echo ""
+          echo "=== Teste src Module ==="
+          python -c "from src.config import config; print('config OK')"
+          python -c "from src.database import init_database; print('database OK')"
+          python -c "from src.wiki_api import WikipediaAPI; print('wiki_api OK')"
+          python -c "from src.detectors import ManipulationDetector; print('detectors OK')"
+          python -c "from src.ai_analyzer import AIAnalyzer; print('ai_analyzer OK')"
+          python -c "from src.article_finder import ArticleFinder; print('article_finder OK')"
+          echo ""
+          echo "=== Alle Imports erfolgreich! ==="
+      
+      - name: 🔍 Wikipedia Scan durchführen
+        env:
+          HF_API_TOKEN: ${{ secrets.HF_API_TOKEN }}
+        run: |
+          echo "Starte Wikipedia Manipulation Scan..."
+          python main.py scan
+      
+      - name: 📊 Statistiken anzeigen
+        run: python main.py stats
+      
+      - name: 💾 Datenbank speichern (Artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: wiki-monitor-database
+          path: data/wiki_monitor.db
+          retention-days: 90
+      
+      - name: 📤 Datenbank committen
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add data/wiki_monitor.db
+          if git diff --staged --quiet; then
+            echo "Keine Änderungen in der Datenbank"
+          else
+            git commit -m "🔄 Automatischer Scan $(date +'%Y-%m-%d %H:%M')"
+            git push
+          fi
