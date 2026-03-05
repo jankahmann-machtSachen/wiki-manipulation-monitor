@@ -1,18 +1,7 @@
-# Wikipedia Manipulation Monitor - Dependencies
-# =============================================
 
-# Web-Anfragen
-requests>=2.31.0
-
-# Datenverarbeitung (WICHTIG: Version ohne Pin für Python 3.13 Kompatibilität)
-pandas>=2.2.0
-
-# Dashboard
-streamlit>=1.29.0
-plotly>=5.18.0
-
-# KI-Analyse
-huggingface-hub>=0.20.1
-
-# Hilfsbibliotheken
-python-dateutil>=2.8.2
+requests
+pandas
+streamlit
+plotly
+huggingface-hub
+python-dateutil
