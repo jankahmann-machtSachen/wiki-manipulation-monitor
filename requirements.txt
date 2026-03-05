@@ -1,0 +1,22 @@
+
+# Wikipedia Manipulation Monitor - Dependencies
+# =============================================
+
+# Web-Anfragen
+requests==2.31.0
+
+# Datenverarbeitung
+pandas==2.1.4
+
+# Datenbank
+# (SQLite ist in Python eingebaut - keine Installation nötig)
+
+# Dashboard
+streamlit==1.29.0
+plotly==5.18.0
+
+# KI-Analyse
+huggingface-hub==0.20.1
+
+# Hilfsbibliotheken
+python-dateutil==2.8.2
